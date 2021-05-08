@@ -17,7 +17,7 @@
 #[cfg(test)]
 mod tests {
     use curv::elliptic::curves::traits::ECPoint;
-    use curv::GE;
+    use curv::elliptic::curves::ed25519::GE;
     use protocols::aggsig::{test_com, verify, KeyPair, Signature};
 
     #[test]
@@ -196,7 +196,9 @@ mod tests {
     }
 
     use curv::elliptic::curves::traits::ECScalar;
-    use curv::{BigInt, FE};
+    use curv::elliptic::curves::ed25519::FE;
+    use curv::BigInt;
+    use curv::arithmetic::traits::Converter;
     use hex::decode;
     #[test]
     fn test_verify_standard_sig() {
@@ -207,7 +209,7 @@ mod tests {
         // R = 311b4390d1d92ee3c56d66e22c7cacf13fba86c44b61769b81aa26680af02d1b
         // s = 5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02
 
-        let eight_bn = BigInt::from(8);
+        let eight_bn = BigInt::from_bytes(&[8]);
         let eight: FE = ECScalar::from(&eight_bn);
         let eight_inv = eight.invert();
 
@@ -227,7 +229,7 @@ mod tests {
         let s_str = "5a180452743fac943b53728e4cbea288a566ba49f7695808d53b3f9f1cd6ed02";
         let mut s_dec = decode(s_str).unwrap();
         s_dec.reverse();
-        let s_bn = BigInt::from(&s_dec[..]);
+        let s_bn = BigInt::from_bytes(&s_dec[..]);
         let s: FE = ECScalar::from(&s_bn);
 
         let sig = Signature { R, s };

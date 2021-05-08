@@ -22,11 +22,13 @@ use curv::cryptographic_primitives::commitments::traits::Commitment;
 use curv::cryptographic_primitives::hashing::hash_sha512::HSha512;
 use curv::cryptographic_primitives::hashing::traits::*;
 use curv::cryptographic_primitives::secret_sharing::feldman_vss::VerifiableSS;
-use curv::{BigInt, FE, GE};
+use curv::elliptic::curves::ed25519::{FE, GE};
+use curv::BigInt;
 
 const SECURITY: usize = 256;
 
 // u_i is private key and {u__i, prefix} are extended private key.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Keys {
     pub u_i: FE,
     pub y_i: GE,
@@ -34,40 +36,43 @@ pub struct Keys {
     pub party_index: usize,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyGenBroadcastMessage1 {
     com: BigInt,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Parameters {
     pub threshold: usize,   //t
     pub share_count: usize, //n
 }
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharedKeys {
     pub y: GE,
     pub x_i: FE,
     prefix: FE,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EphemeralKey {
     pub r_i: FE,
     pub R_i: GE,
     pub party_index: usize,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EphemeralSharedKeys {
     pub R: GE,
     pub r_i: FE,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LocalSig {
     gamma_i: FE,
     k: FE,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Signature {
     pub sigma: FE,
     pub R: GE,
@@ -87,7 +92,7 @@ impl Keys {
     fn phase1_create_from_private_key_internal(index: usize, sk: &FE) -> Keys {
         let ec_point: GE = ECPoint::generator();
         let h = HSha512::create_hash(&vec![&sk.to_big_int()]);
-        let h_vec = BigInt::to_vec(&h);
+        let h_vec = h.to_bytes();
         let mut h_vec_padded = vec![0; 64 - h_vec.len()];  // ensure hash result is padded to 64 bytes
         h_vec_padded.extend_from_slice(&h_vec);
         let mut private_key: [u8; 32] = [0u8; 32];
@@ -99,8 +104,8 @@ impl Keys {
         private_key[31] |= 64;
         let private_key = &private_key[..private_key.len()];
         let prefix = &prefix[..prefix.len()];
-        let private_key: FE = ECScalar::from(&BigInt::from(private_key));
-        let prefix: FE = ECScalar::from(&BigInt::from(prefix));
+        let private_key: FE = ECScalar::from(&BigInt::from_bytes(private_key));
+        let prefix: FE = ECScalar::from(&BigInt::from_bytes(prefix));
         let public_key = ec_point * &private_key;
 
         Keys {
@@ -128,7 +133,7 @@ impl Keys {
         y_vec: &Vec<GE>,
         bc1_vec: &Vec<KeyGenBroadcastMessage1>,
         parties: &[usize],
-    ) -> Result<(VerifiableSS, Vec<FE>, usize), Error> {
+    ) -> Result<(VerifiableSS<GE>, Vec<FE>, usize), Error> {
         // test length:
         assert_eq!(blind_vec.len(), params.share_count);
         assert_eq!(bc1_vec.len(), params.share_count);
@@ -161,7 +166,7 @@ impl Keys {
         params: &Parameters,
         y_vec: &Vec<GE>,
         secret_shares_vec: &Vec<FE>,
-        vss_scheme_vec: &Vec<VerifiableSS>,
+        vss_scheme_vec: &Vec<VerifiableSS<GE>>,
         index: &usize,
     ) -> Result<SharedKeys, Error> {
         assert_eq!(y_vec.len(), params.share_count);
@@ -207,7 +212,7 @@ impl EphemeralKey {
         // to the nonce
         let r_local = HSha512::create_hash(&[
             &keys.prefix.to_big_int(),
-            &BigInt::from(message),
+            &BigInt::from_bytes(message),
             &FE::new_random().to_big_int(),
         ]);
         let r_i: FE = ECScalar::from(&r_local);
@@ -237,7 +242,7 @@ impl EphemeralKey {
         R_vec: &Vec<GE>,
         bc1_vec: &Vec<KeyGenBroadcastMessage1>,
         parties: &[usize],
-    ) -> Result<(VerifiableSS, Vec<FE>, usize), Error> {
+    ) -> Result<(VerifiableSS<GE>, Vec<FE>, usize), Error> {
         // test length:
         assert!(blind_vec.len() > params.threshold && blind_vec.len() <= params.share_count);
         assert!(bc1_vec.len() > params.threshold && bc1_vec.len() <= params.share_count);
@@ -270,7 +275,7 @@ impl EphemeralKey {
         params: &Parameters,
         R_vec: &Vec<GE>,
         secret_shares_vec: &Vec<FE>,
-        vss_scheme_vec: &Vec<VerifiableSS>,
+        vss_scheme_vec: &Vec<VerifiableSS<GE>>,
         index: &usize,
     ) -> Result<EphemeralSharedKeys, Error> {
         assert!(R_vec.len() > params.threshold && R_vec.len() <= params.share_count);
@@ -316,7 +321,7 @@ impl LocalSig {
         let e_bn = HSha512::create_hash(&[
             &local_ephemaral_key.R.bytes_compressed_to_big_int(),
             &local_private_key.y.bytes_compressed_to_big_int(),
-            &BigInt::from(message),
+            &BigInt::from_bytes(message),
         ]);
         let k: FE = ECScalar::from(&e_bn);
         let gamma_i = r_i + k * s_i;
@@ -329,9 +334,9 @@ impl LocalSig {
     pub fn verify_local_sigs(
         gamma_vec: &Vec<LocalSig>,
         parties_index_vec: &[usize],
-        vss_private_keys: &Vec<VerifiableSS>,
-        vss_ephemeral_keys: &Vec<VerifiableSS>,
-    ) -> Result<(VerifiableSS), Error> {
+        vss_private_keys: &Vec<VerifiableSS<GE>>,
+        vss_ephemeral_keys: &Vec<VerifiableSS<GE>>,
+    ) -> Result<VerifiableSS<GE>, Error> {
         //parties_index_vec is a vector with indices of the parties that are participating and provided gamma_i for this step
         // test that enough parties are in this round
         assert!(parties_index_vec.len() > vss_private_keys[0].parameters.threshold);
@@ -380,7 +385,7 @@ impl LocalSig {
 
 impl Signature {
     pub fn generate(
-        vss_sum_local_sigs: &VerifiableSS,
+        vss_sum_local_sigs: &VerifiableSS<GE>,
         local_sig_vec: &Vec<LocalSig>,
         parties_index_vec: &[usize],
         R: GE,
@@ -400,7 +405,7 @@ impl Signature {
         let e_bn = HSha512::create_hash(&[
             &self.R.bytes_compressed_to_big_int(),
             &pubkey_y.bytes_compressed_to_big_int(),
-            &BigInt::from(message),
+            &BigInt::from_bytes(message),
         ]);
 
         let e: FE = ECScalar::from(&e_bn);

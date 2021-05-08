@@ -18,10 +18,11 @@
 mod tests {
 
     use curv::cryptographic_primitives::hashing::hash_sha256::HSha256;
-    use curv::cryptographic_primitives::hashing::merkle_tree::MT256;
     use curv::cryptographic_primitives::hashing::traits::Hash;
     use curv::elliptic::curves::traits::ECScalar;
-    use curv::{BigInt, FE};
+    use curv::elliptic::curves::ed25519::FE;
+    use curv::BigInt;
+    use curv::arithmetic::traits::Converter;
     use protocols::multisig::{partial_sign, verify, EphKey, Keys, Signature};
 
     #[test]
@@ -33,7 +34,7 @@ mod tests {
 
     fn two_party_key_gen_internal() {
         let message_vec = vec![79, 77, 69, 82];
-        let message_bn = BigInt::from(&message_vec[..]);
+        let message_bn = BigInt::from_bytes(&message_vec[..]);
         let message = HSha256::create_hash(&vec![&message_bn]);
 
         // party1 key gen:
@@ -56,14 +57,6 @@ mod tests {
         assert!(verify(&keys_1.I.public_key, &sig1, &e).is_ok());
         assert!(verify(&keys_2.I.public_key, &sig2, &e).is_ok());
 
-        // merkle tree (in case needed)
-
-        let ge_vec = vec![(keys_1.I.public_key).clone(), (keys_2.I.public_key).clone()];
-        let mt256 = MT256::create_tree(&ge_vec);
-        let proof1 = mt256.gen_proof_for_ge(&keys_1.I.public_key);
-        let proof2 = mt256.gen_proof_for_ge(&keys_2.I.public_key);
-        let root = mt256.get_root();
-
         //TODO: reduce number of clones.
         // signing
         let party1_com = EphKey::gen_commit(&keys_1.I, &message);
@@ -83,9 +76,6 @@ mod tests {
         let y = EphKey::add_signature_parts(vec![y1, y2]);
         let sig = Signature::set_signature(&Xt, &y);
         assert!(verify(&It, &sig, &es).is_ok());
-
-        assert!(MT256::validate_proof(&proof1, root).is_ok());
-        assert!(MT256::validate_proof(&proof2, root).is_ok());
     }
 
 }
