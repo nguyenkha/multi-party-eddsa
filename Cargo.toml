@@ -10,7 +10,7 @@ authors = [
 crate-type = ["rlib", "dylib"]
 
 [dependencies]
-curv = { git = "https://github.com/ZenGo-X/curv"}
+curv = { git = "https://github.com/nguyenkha/curv" }
 hex = "0.3.2"
 serde = "1.0"
 serde_json = "1.0"

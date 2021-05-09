@@ -23,7 +23,7 @@ extern crate serde_json;
 
 pub mod protocols;
 
-#[derive(Copy, PartialEq, Eq, Clone, Debug)]
+#[derive(Copy, PartialEq, Eq, Clone, Debug, Serialize, Deserialize)]
 pub enum Error {
     InvalidKey,
     InvalidSS,
