@@ -215,7 +215,7 @@ impl EphemeralKey {
             &BigInt::from_bytes(message),
             &FE::new_random().to_big_int(),
         ]);
-        let r_i: FE = ECScalar::from(&r_local);
+        let r_i: FE = reverse_bn_to_fe(&r_local);
         let R_i = GE::generator() * &r_i;
 
         EphemeralKey {
@@ -323,7 +323,7 @@ impl LocalSig {
             &local_private_key.y.bytes_compressed_to_big_int(),
             &BigInt::from_bytes(message),
         ]);
-        let k: FE = ECScalar::from(&e_bn);
+        let k: FE = reverse_bn_to_fe(&e_bn);
         let gamma_i = r_i + k * s_i;
 
         LocalSig { gamma_i, k }
@@ -408,7 +408,7 @@ impl Signature {
             &BigInt::from_bytes(message),
         ]);
 
-        let e: FE = ECScalar::from(&e_bn);
+        let e: FE = reverse_bn_to_fe(&e_bn);
 
         let g: GE = GE::generator();
         let sigma_g = g * &self.sigma;
@@ -424,3 +424,10 @@ impl Signature {
 }
 
 mod test;
+
+pub fn reverse_bn_to_fe(scalar: &BigInt) -> FE {
+    let mut vec = scalar.to_bytes();
+    vec.reverse();
+    let scalar_out = BigInt::from_bytes(&vec[..]);
+    ECScalar::from(&scalar_out)
+}
