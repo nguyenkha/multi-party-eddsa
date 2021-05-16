@@ -312,17 +312,22 @@ impl EphemeralKey {
 impl LocalSig {
     pub fn compute(
         message: &[u8],
-        local_ephemaral_key: &EphemeralSharedKeys,
+        local_ephemeral_key: &EphemeralSharedKeys,
         local_private_key: &SharedKeys,
     ) -> LocalSig {
-        let r_i = local_ephemaral_key.r_i.clone();
+        let r_i = local_ephemeral_key.r_i.clone();
         let s_i = local_private_key.x_i.clone();
 
-        let e_bn = HSha512::create_hash(&[
-            &local_ephemaral_key.R.bytes_compressed_to_big_int(),
-            &local_private_key.y.bytes_compressed_to_big_int(),
-            &BigInt::from_bytes(message),
-        ]);
+        let message_len_bits = message.len() * 8;
+        let R = local_ephemeral_key.R.bytes_compressed_to_big_int();
+        let X = local_private_key.y.bytes_compressed_to_big_int();
+        let X_vec = BigInt::to_bytes(&X);
+        let X_vec_len_bits = X_vec.len() * 8;
+        let e_bn = HSha512::create_hash_from_slice(
+            &BigInt::to_bytes(
+                &((((R << X_vec_len_bits) + X) << message_len_bits) + BigInt::from_bytes(message)),
+            )[..],
+        );
         let k: FE = reverse_bn_to_fe(&e_bn);
         let gamma_i = r_i + k * s_i;
 
